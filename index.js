@@ -13,7 +13,7 @@ require('dotenv').config();
 const PORT = process.env.PORT;
 
 app.use(cors({
-  origin: ["https://mern-peach-one.vercel.app"],
+  origin: ["http://localhost:3000"],
   methods: ["GET", "PUT", "POST", "DELETE"],
   credentials: true, // Allow credentials
 }));
