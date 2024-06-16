@@ -13,7 +13,7 @@ require('dotenv').config();
 const PORT = process.env.PORT;
 
 app.use(cors({
-  origin: ["https://visit-karnataka-frontend.onrender.com"],
+  origin: ["https://visit-karnataka-frontend.vercel.app"],
   methods: ["GET", "PUT", "POST", "DELETE"],
   credentials: true, // Allow credentials
 }));
