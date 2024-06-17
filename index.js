@@ -45,6 +45,11 @@ mongoose.connect(process.env.MONGO_URL)
     try {
       const { placetitle, placelocation, guidename, guidemobile, guidelanguage, residentialdetails, policestation, firestation, maplink, description } = req.body;
   
+      // Check if file was uploaded
+      if (!req.file) {
+        return res.status(400).json({ error: 'Image file is required' });
+      }
+  
       // Upload image to Cloudinary
       const result = await cloudinary.uploader.upload(req.file.path);
   
@@ -63,12 +68,14 @@ mongoose.connect(process.env.MONGO_URL)
         image: result.secure_url // Store Cloudinary URL in database
       });
   
+      // Respond with success message and created place object
       res.json({ status: "OK", place });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Failed to create place. Please try again.' });
     }
   });
+  
   
 
 // Serve uploaded images statically (if needed, though Cloudinary serves images directly)
