@@ -7,8 +7,8 @@ const Place = require('./models/PlaceModel');
 const Feedback = require('./models/Feedback');
 const app = express();
 const jwt = require('jsonwebtoken');
-const PORT = 8080;
-
+const PORT = process.env.PORT
+require('dotenv').config();
 
 
 app.use(cors({
@@ -24,7 +24,7 @@ const secretKey = process.env.key;
 const refreshSecretKey = process.env.rkey; // Add a separate secret key for refresh tokens
 
 
-mongoose.connect('mongodb://localhost:27017/Visit_Karnataka')
+mongoose.connect(process.env.MONGO_URL)
   .then(() => {
     console.log("Connected to MongoDB!");
   })
