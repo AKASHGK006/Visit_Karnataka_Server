@@ -8,6 +8,8 @@ const Feedback = require('./models/Feedback');
 const app = express();
 const jwt = require('jsonwebtoken');
 const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
 const path = require('path');
 require('dotenv').config();
 const PORT = process.env.PORT;
@@ -38,35 +40,36 @@ mongoose.connect(process.env.MONGO_URL)
     console.error("Error connecting to MongoDB:", err);
   });
 
-// Endpoint for creating places with Cloudinary image upload
-app.post('/Createplaces', async (req, res) => {
-  try {
-    const { placetitle, placelocation, guidename, guidemobile, guidelanguage, residentialdetails, policestation, firestation, maplink, description } = req.body;
-
-    // Upload image to Cloudinary
-    const result = await cloudinary.uploader.upload(req.file.path);
-
-    // Create a new place record in MongoDB with Cloudinary image URL
-    const place = await Place.create({
-      placetitle,
-      placelocation,
-      guidename,
-      guidemobile,
-      guidelanguage,
-      residentialdetails,
-      policestation,
-      firestation,
-      maplink,
-      description,
-      image: result.secure_url // Store Cloudinary URL in database
-    });
-
-    res.json({ status: "OK", place });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to create place. Please try again.' });
-  }
-});
+  
+  app.post('/Createplaces', upload.single('file'), async (req, res) => {
+    try {
+      const { placetitle, placelocation, guidename, guidemobile, guidelanguage, residentialdetails, policestation, firestation, maplink, description } = req.body;
+  
+      // Upload image to Cloudinary
+      const result = await cloudinary.uploader.upload(req.file.path);
+  
+      // Create a new place record in MongoDB with Cloudinary image URL
+      const place = await Place.create({
+        placetitle,
+        placelocation,
+        guidename,
+        guidemobile,
+        guidelanguage,
+        residentialdetails,
+        policestation,
+        firestation,
+        maplink,
+        description,
+        image: result.secure_url // Store Cloudinary URL in database
+      });
+  
+      res.json({ status: "OK", place });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to create place. Please try again.' });
+    }
+  });
+  
 
 // Serve uploaded images statically (if needed, though Cloudinary serves images directly)
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
