@@ -7,7 +7,6 @@ const Place = require('./models/PlaceModel');
 const Feedback = require('./models/Feedback');
 const app = express();
 const jwt = require('jsonwebtoken');
-const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
 
@@ -15,7 +14,7 @@ const PORT = process.env.PORT;
 
 
 app.use(cors({
-  origin: ["http://localhost:3000"],
+  origin: ["https://visit-karnataka-frontend.vercel.app"],
   methods: ["GET", "PUT", "POST", "DELETE"],
   credentials: true, // Allow credentials
 }));
