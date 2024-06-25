@@ -12,7 +12,9 @@ const placeSchema = new mongoose.Schema({
   firestation: String,
   maplink: String,
   description: { type: String, required: true },
-  image: String // Assuming this will store the URL of the image
+  image: String ,
+  latitude: String,
+  longitude: String
 });
 
 const Place = mongoose.model('Place', placeSchema);
