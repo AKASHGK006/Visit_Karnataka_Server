@@ -8,15 +8,16 @@ const Feedback = require('./models/Feedback');
 const app = express();
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const Booking = require('./models/Booking');
 require('dotenv').config();
 
 const PORT = process.env.PORT;
 
 
 app.use(cors({
-  origin: ["https://visit-karnataka-frontend.vercel.app"],
-  methods: ["GET", "PUT", "POST", "DELETE"],
-  credentials: true, // Allow credentials
+    origin: ["https://visit-karnataka-frontend.vercel.app"],
+    methods: ["GET", "PUT", "POST", "DELETE"],
+    credentials: true, // Allow credentials
 }));
 
 
@@ -27,12 +28,12 @@ const refreshSecretKey = process.env.rkey; // Add a separate secret key for refr
 
 
 mongoose.connect(process.env.MONGO_URL)
-  .then(() => {
-    console.log("Connected to MongoDB!");
-  })
-  .catch((err) => {
-    console.error("Error connecting to MongoDB:", err);
-  });
+    .then(() => {
+        console.log("Connected to MongoDB!");
+    })
+    .catch((err) => {
+        console.error("Error connecting to MongoDB:", err);
+    });
 
 // Reusable error handling function
 const handleError = (res, statusCode, message) => {
@@ -43,24 +44,24 @@ const handleError = (res, statusCode, message) => {
 // Route to check if phone number exists
 app.get('/checkUserExist', async (req, res) => {
     try {
-      const { phone } = req.query;
-      
-      // Check if the phone number exists in the database
-      const user = await SignupModel.findOne({ phone });
-      
-      // If user exists, return status true
-      if (user) {
-        return res.json({ exists: true });
-      } else {
-        return res.json({ exists: false });
-      }
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Internal Server Error' });
-    }
-  });
+        const { phone } = req.query;
 
-  
+        // Check if the phone number exists in the database
+        const user = await SignupModel.findOne({ phone });
+
+        // If user exists, return status true
+        if (user) {
+            return res.json({ exists: true });
+        } else {
+            return res.json({ exists: false });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+
+
 // Endpoint for user login
 app.post('/Login', async (req, res) => {
     try {
@@ -83,8 +84,8 @@ app.post('/Login', async (req, res) => {
         const token = jwt.sign({ userId: user._id, role: user.role }, secretKey, { expiresIn: '10s' });
         const refreshToken = jwt.sign({ userId: user._id, role: user.role }, refreshSecretKey);
 
-        res.json({ 
-            Status: "Success", 
+        res.json({
+            Status: "Success",
             role: user.role,
             name: user.name,
             phone: user.phone,
@@ -110,7 +111,7 @@ app.post('/RefreshToken', async (req, res) => {
             if (err) {
                 return res.status(403).json({ error: 'Invalid refresh token' });
             }
-            
+
             // If refresh token is valid, generate a new JWT token
             const newToken = jwt.sign({ userId: decoded.userId, role: decoded.role }, secretKey, { expiresIn: '10s' });
             res.json({ token: newToken });
@@ -165,7 +166,7 @@ app.get('/places/:id', async (req, res) => {
 });
 
 // Endpoint for deleting a place by ID
-app.delete('/places/:id' ,async (req, res) => {
+app.delete('/places/:id', async (req, res) => {
     try {
         const deletedPlace = await Place.findByIdAndDelete(req.params.id);
         if (!deletedPlace) return res.status(404).json({ error: 'Place not found' });
@@ -213,7 +214,7 @@ app.delete('/Feedback/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const deletedFeedback = await Feedback.findByIdAndDelete(id);
-        
+
         if (!deletedFeedback) {
             return res.status(404).json({ error: "Feedback entry not found" });
         }
@@ -224,6 +225,55 @@ app.delete('/Feedback/:id', async (req, res) => {
     }
 });
 
+app.post('/bookings', async (req, res) => {
+    console.log(req.body); // Log incoming data
+
+    const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
+
+    const newBooking = new Booking({
+        name,
+        mobileNumber,
+        place,
+        participants,
+        date,
+        time,
+        language,
+        totalPrice
+    });
+
+    try {
+        const savedBooking = await newBooking.save();
+        res.status(201).json(savedBooking);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+app.get('/bookings', async (req, res) => {
+    try {
+        const bookings = await Booking.find(); // Retrieve all bookings
+        res.status(200).json(bookings); // Send bookings as JSON response
+    } catch (error) {
+        res.status(500).json({ error: error.message }); // Handle server error
+    }
+});
+
+app.delete('/bookings/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const deletedBooking = await Booking.findByIdAndDelete(id);
+
+        if (!deletedBooking) {
+            return res.status(404).json({ error: 'Booking not found' });
+        }
+
+        res.json({ message: 'Booking deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting booking:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
