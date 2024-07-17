@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const placeSchema = new mongoose.Schema({
   placetitle: { type: String, required: true },
   placelocation: { type: String, required: true },
+  placemeetlocation: { type: String, required: true },
+  placeprice: { type: String, required: true },
   guidename: String,
   guidemobile: String,
   guidelanguage: String,
