@@ -16,14 +16,32 @@ const app = express();
 const PORT = process.env.PORT;
 
 app.use(cors({
-    origin: ["https://visit-karnataka-frontend.vercel.app"],
+    origin: ["http://localhost:3000"],
     methods: ["GET", "PUT", "POST", "DELETE"],
     credentials: true,
 }));
 
-app.use(helmet()); // Add security headers
+app.use(helmet({
+    contentSecurityPolicy: false,
+    frameguard: { action: 'deny' },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    referrerPolicy: { policy: 'no-referrer' },
+    // Removing Permissions-Policy for features not in use
+    permissionsPolicy: {
+        features: {
+            // List only the features you need
+            geolocation: ['self'],
+            microphone: [],
+            camera: [],
+            // Remove or comment out the ad-related features
+            // join-ad-interest-group: [],
+            // run-ad-auction: [],
+        }
+    }
+}));
+
 app.use(express.json({ limit: '100mb' }));
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 })); // Limit repeated requests
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
 const secretKey = process.env.JWT_SECRET_KEY;
 const refreshSecretKey = process.env.JWT_REFRESH_SECRET_KEY;
@@ -203,7 +221,7 @@ app.put('/places/:placeId', authenticateToken, async (req, res) => {
 });
 
 // Endpoint for creating Feedback (authenticated route)
-app.post('/Feedback', async (req, res) => {
+app.post('/Feedback', authenticateToken, async (req, res) => {
     try {
         const sanitizedData = sanitizeInput(req.body);
         const feedback = await Feedback.create(sanitizedData);
@@ -240,7 +258,7 @@ app.delete('/Feedback/:id', authenticateToken, async (req, res) => {
 });
 
 // Endpoint for creating bookings (authenticated route)
-app.post('/bookings', async (req, res) => {
+app.post('/bookings', authenticateToken, async (req, res) => {
     try {
         const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
 
