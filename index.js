@@ -240,7 +240,7 @@ app.delete('/Feedback/:id', authenticateToken, async (req, res) => {
 });
 
 // Endpoint for creating bookings (authenticated route)
-app.post('/bookings', authenticateToken, async (req, res) => {
+app.post('/bookings', async (req, res) => {
     try {
         const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
 
