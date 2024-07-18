@@ -203,7 +203,7 @@ app.put('/places/:placeId', authenticateToken, async (req, res) => {
 });
 
 // Endpoint for creating Feedback (authenticated route)
-app.post('/Feedback', authenticateToken, async (req, res) => {
+app.post('/Feedback', async (req, res) => {
     try {
         const sanitizedData = sanitizeInput(req.body);
         const feedback = await Feedback.create(sanitizedData);
