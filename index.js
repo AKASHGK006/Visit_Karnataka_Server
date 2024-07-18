@@ -5,10 +5,10 @@ const bcrypt = require('bcrypt');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const xss = require('xss');
+const jwt = require('jsonwebtoken');
 const SignupModel = require('./models/Signup');
 const Place = require('./models/PlaceModel');
 const Feedback = require('./models/Feedback');
-const jwt = require('jsonwebtoken');
 const Booking = require('./models/Booking');
 require('dotenv').config();
 
@@ -28,13 +28,9 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 })); // Limit repeated re
 const secretKey = process.env.JWT_SECRET_KEY;
 const refreshSecretKey = process.env.JWT_REFRESH_SECRET_KEY;
 
-mongoose.connect(process.env.MONGO_URL)
-    .then(() => {
-        console.log("Connected to MongoDB!");
-    })
-    .catch((err) => {
-        console.error("Error connecting to MongoDB:", err);
-    });
+mongoose.connect(process.env.MONGO_URL, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log("Connected to MongoDB!"))
+    .catch((err) => console.error("Error connecting to MongoDB:", err));
 
 // Reusable error handling function
 const handleError = (res, statusCode, message) => {
@@ -245,31 +241,22 @@ app.delete('/Feedback/:id', authenticateToken, async (req, res) => {
 
 // Endpoint for creating bookings (authenticated route)
 app.post('/bookings', authenticateToken, async (req, res) => {
-    console.log(req.body);
-
-    const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
-
-    const sanitizedName = sanitizeInput(name);
-    const sanitizedMobileNumber = sanitizeInput(mobileNumber);
-    const sanitizedPlace = sanitizeInput(place);
-    const sanitizedParticipants = sanitizeInput(participants);
-    const sanitizedDate = sanitizeInput(date);
-    const sanitizedTime = sanitizeInput(time);
-    const sanitizedLanguage = sanitizeInput(language);
-    const sanitizedTotalPrice = sanitizeInput(totalPrice);
-
-    const newBooking = new Booking({
-        name: sanitizedName,
-        mobileNumber: sanitizedMobileNumber,
-        place: sanitizedPlace,
-        participants: sanitizedParticipants,
-        date: sanitizedDate,
-        time: sanitizedTime,
-        language: sanitizedLanguage,
-        totalPrice: sanitizedTotalPrice
-    });
-
     try {
+        const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
+
+        const sanitizedBookingData = {
+            name: sanitizeInput(name),
+            mobileNumber: sanitizeInput(mobileNumber),
+            place: sanitizeInput(place),
+            participants: sanitizeInput(participants),
+            date: sanitizeInput(date),
+            time: sanitizeInput(time),
+            language: sanitizeInput(language),
+            totalPrice: sanitizeInput(totalPrice)
+        };
+
+        const newBooking = new Booking(sanitizedBookingData);
+
         const savedBooking = await newBooking.save();
         res.status(201).json(savedBooking);
     } catch (error) {
