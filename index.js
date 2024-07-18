@@ -202,7 +202,7 @@ app.put('/places/:placeId', authenticateToken, async (req, res) => {
     }
 });
 
-// Endpoint for creating Feedback (authenticated route)
+// Endpoint for creating Feedback (no authentication required)
 app.post('/Feedback', async (req, res) => {
     try {
         const sanitizedData = sanitizeInput(req.body);
@@ -239,7 +239,7 @@ app.delete('/Feedback/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// Endpoint for creating bookings (authenticated route)
+// Endpoint for creating bookings (no authentication required)
 app.post('/bookings', async (req, res) => {
     try {
         const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
