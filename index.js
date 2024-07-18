@@ -13,16 +13,19 @@ require('dotenv').config();
 
 const PORT = process.env.PORT;
 
+
 app.use(cors({
-    origin: ["https://visit-karnataka-frontend.vercel.app"],
+    origin: ["http://localhost:3000"],
     methods: ["GET", "PUT", "POST", "DELETE"],
     credentials: true, // Allow credentials
 }));
 
-app.use(express.json({ limit: '100mb' }));
 
-const secretKey = process.env.key;
-const refreshSecretKey = process.env.rkey; // Add a separate secret key for refresh tokens
+app.use(express.json({ limit: '100kb' }));
+
+const secretKey = process.env.JWT_SECRET_KEY;
+const refreshSecretKey = process.env.JWT_REFRESH_SECRET_KEY; // Add a separate secret key for refresh tokens
+
 
 mongoose.connect(process.env.MONGO_URL)
     .then(() => {
@@ -36,28 +39,6 @@ mongoose.connect(process.env.MONGO_URL)
 const handleError = (res, statusCode, message) => {
     console.error(message);
     res.status(statusCode).json({ error: message });
-};
-
-// Middleware to verify admin role
-const verifyAdmin = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-        return res.status(401).json({ error: 'Authorization header missing' });
-    }
-
-    const token = authHeader.split(' ')[1];
-    jwt.verify(token, secretKey, (err, user) => {
-        if (err) {
-            return res.status(403).json({ error: 'Forbidden' });
-        }
-
-        if (user.role !== 'admin') {
-            return res.status(403).json({ error: 'Admin role required' });
-        }
-
-        req.user = user;
-        next();
-    });
 };
 
 // Route to check if phone number exists
@@ -79,6 +60,7 @@ app.get('/checkUserExist', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
+
 
 // Endpoint for user login
 app.post('/Login', async (req, res) => {
@@ -139,6 +121,7 @@ app.post('/RefreshToken', async (req, res) => {
     }
 });
 
+
 // Endpoint for user signup
 app.post('/Signup', async (req, res) => {
     try {
@@ -152,7 +135,7 @@ app.post('/Signup', async (req, res) => {
 });
 
 // Endpoint for creating places
-app.post('/Createplaces', verifyAdmin, async (req, res) => {
+app.post('/Createplaces', async (req, res) => {
     try {
         const place = await Place.create(req.body);
         res.json({ status: "OK", place });
@@ -183,7 +166,7 @@ app.get('/places/:id', async (req, res) => {
 });
 
 // Endpoint for deleting a place by ID
-app.delete('/places/:id', verifyAdmin, async (req, res) => {
+app.delete('/places/:id', async (req, res) => {
     try {
         const deletedPlace = await Place.findByIdAndDelete(req.params.id);
         if (!deletedPlace) return res.status(404).json({ error: 'Place not found' });
@@ -194,7 +177,7 @@ app.delete('/places/:id', verifyAdmin, async (req, res) => {
 });
 
 // Endpoint for updating a place by ID
-app.put('/places/:placeId', verifyAdmin, async (req, res) => {
+app.put('/places/:placeId', async (req, res) => {
     try {
         const updatedPlace = await Place.findByIdAndUpdate(req.params.placeId, req.body, { new: true });
         res.json({ status: 'OK', updatedPlace });
@@ -203,7 +186,8 @@ app.put('/places/:placeId', verifyAdmin, async (req, res) => {
     }
 });
 
-// Endpoint for creating Feedback (not restricted, as per your instruction)
+
+// Endpoint for creating Feedback
 app.post('/Feedback', async (req, res) => {
     try {
         const feedback = await Feedback.create(req.body);
@@ -212,6 +196,7 @@ app.post('/Feedback', async (req, res) => {
         handleError(res, 500, err.message);
     }
 });
+
 
 // Endpoint for fetching feedback data
 app.get('/Feedback', async (req, res) => {
@@ -223,8 +208,9 @@ app.get('/Feedback', async (req, res) => {
     }
 });
 
+
 // Endpoint for deleting a feedback entry by ID
-app.delete('/Feedback/:id', verifyAdmin, async (req, res) => {
+app.delete('/Feedback/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const deletedFeedback = await Feedback.findByIdAndDelete(id);
@@ -239,10 +225,7 @@ app.delete('/Feedback/:id', verifyAdmin, async (req, res) => {
     }
 });
 
-// Endpoint for creating bookings (not restricted, as per your instruction)
 app.post('/bookings', async (req, res) => {
-    console.log(req.body); // Log incoming data
-
     const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
 
     const newBooking = new Booking({
@@ -264,7 +247,6 @@ app.post('/bookings', async (req, res) => {
     }
 });
 
-// Endpoint for retrieving all bookings
 app.get('/bookings', async (req, res) => {
     try {
         const bookings = await Booking.find(); // Retrieve all bookings
@@ -274,8 +256,7 @@ app.get('/bookings', async (req, res) => {
     }
 });
 
-// Endpoint for deleting a booking entry by ID
-app.delete('/bookings/:id', verifyAdmin, async (req, res) => {
+app.delete('/bookings/:id', async (req, res) => {
     const { id } = req.params;
 
     try {
