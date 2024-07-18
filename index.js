@@ -2,30 +2,31 @@ const express = require("express");
 const mongoose = require('mongoose');
 const cors = require("cors");
 const bcrypt = require('bcrypt');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const xss = require('xss');
 const SignupModel = require('./models/Signup');
 const Place = require('./models/PlaceModel');
 const Feedback = require('./models/Feedback');
-const app = express();
 const jwt = require('jsonwebtoken');
-const path = require('path');
 const Booking = require('./models/Booking');
 require('dotenv').config();
 
+const app = express();
 const PORT = process.env.PORT;
-
 
 app.use(cors({
     origin: ["https://visit-karnataka-frontend.vercel.app"],
     methods: ["GET", "PUT", "POST", "DELETE"],
-    credentials: true, // Allow credentials
+    credentials: true,
 }));
 
-
+app.use(helmet()); // Add security headers
 app.use(express.json({ limit: '100mb' }));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 })); // Limit repeated requests
 
-const secretKey = process.env.key;
-const refreshSecretKey = process.env.rkey; // Add a separate secret key for refresh tokens
-
+const secretKey = process.env.JWT_SECRET_KEY;
+const refreshSecretKey = process.env.JWT_REFRESH_SECRET_KEY;
 
 mongoose.connect(process.env.MONGO_URL)
     .then(() => {
@@ -41,15 +42,32 @@ const handleError = (res, statusCode, message) => {
     res.status(statusCode).json({ error: message });
 };
 
+// Middleware to check for JWT token
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (token == null) return res.sendStatus(401);
+
+    jwt.verify(token, secretKey, (err, user) => {
+        if (err) return res.sendStatus(403);
+        req.user = user;
+        next();
+    });
+};
+
+// Sanitize input data
+const sanitizeInput = (input) => {
+    return xss(input);
+};
+
 // Route to check if phone number exists
 app.get('/checkUserExist', async (req, res) => {
     try {
         const { phone } = req.query;
+        const sanitizedPhone = sanitizeInput(phone);
+        const user = await SignupModel.findOne({ phone: sanitizedPhone });
 
-        // Check if the phone number exists in the database
-        const user = await SignupModel.findOne({ phone });
-
-        // If user exists, return status true
         if (user) {
             return res.json({ exists: true });
         } else {
@@ -61,27 +79,24 @@ app.get('/checkUserExist', async (req, res) => {
     }
 });
 
-
 // Endpoint for user login
 app.post('/Login', async (req, res) => {
     try {
         const { phone, password } = req.body;
-        // Find user by phone number
-        const user = await SignupModel.findOne({ phone });
+        const sanitizedPhone = sanitizeInput(phone);
+        const sanitizedPassword = sanitizeInput(password);
+        const user = await SignupModel.findOne({ phone: sanitizedPhone });
+
         if (!user) {
-            console.log("User not found for phone:", phone); // Added logging
             return res.status(404).json({ error: "User not found" });
         }
 
-        // Compare passwords
-        const passwordMatch = await bcrypt.compare(password, user.password);
+        const passwordMatch = await bcrypt.compare(sanitizedPassword, user.password);
         if (!passwordMatch) {
-            console.log("Incorrect password for phone:", phone); // Added logging
             return res.status(401).json({ error: "Incorrect Password" });
         }
 
-        // Generate JWT token and refresh token
-        const token = jwt.sign({ userId: user._id, role: user.role }, secretKey, { expiresIn: '10s' });
+        const token = jwt.sign({ userId: user._id, role: user.role }, secretKey, { expiresIn: '15m' });
         const refreshToken = jwt.sign({ userId: user._id, role: user.role }, refreshSecretKey);
 
         res.json({
@@ -90,30 +105,28 @@ app.post('/Login', async (req, res) => {
             name: user.name,
             phone: user.phone,
             token,
-            refreshToken // Send the refresh token to the client
+            refreshToken
         });
     } catch (err) {
-        console.error("Login error:", err); // Added logging
+        console.error("Login error:", err);
         handleError(res, 500, 'Internal server error');
     }
 });
 
 // Endpoint for refreshing JWT token
 app.post('/RefreshToken', async (req, res) => {
-    const { token, refreshToken } = req.body;
-    if (!token || !refreshToken) {
-        return res.status(401).json({ error: 'Token or refresh token missing' });
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+        return res.status(401).json({ error: 'Refresh token missing' });
     }
 
     try {
-        // Verify the refresh token
         jwt.verify(refreshToken, refreshSecretKey, (err, decoded) => {
             if (err) {
                 return res.status(403).json({ error: 'Invalid refresh token' });
             }
 
-            // If refresh token is valid, generate a new JWT token
-            const newToken = jwt.sign({ userId: decoded.userId, role: decoded.role }, secretKey, { expiresIn: '10s' });
+            const newToken = jwt.sign({ userId: decoded.userId, role: decoded.role }, secretKey, { expiresIn: '15m' });
             res.json({ token: newToken });
         });
     } catch (err) {
@@ -121,23 +134,26 @@ app.post('/RefreshToken', async (req, res) => {
     }
 });
 
-
 // Endpoint for user signup
 app.post('/Signup', async (req, res) => {
     try {
         const { name, phone, password } = req.body;
-        const hash = await bcrypt.hash(password, 10);
-        await SignupModel.create({ name, phone, password: hash });
+        const sanitizedName = sanitizeInput(name);
+        const sanitizedPhone = sanitizeInput(phone);
+        const sanitizedPassword = sanitizeInput(password);
+        const hash = await bcrypt.hash(sanitizedPassword, 10);
+        await SignupModel.create({ name: sanitizedName, phone: sanitizedPhone, password: hash });
         res.json({ status: "OK" });
     } catch (err) {
         handleError(res, 500, 'Internal server error');
     }
 });
 
-// Endpoint for creating places
-app.post('/Createplaces', async (req, res) => {
+// Endpoint for creating places (authenticated route)
+app.post('/Createplaces', authenticateToken, async (req, res) => {
     try {
-        const place = await Place.create(req.body);
+        const sanitizedData = sanitizeInput(req.body);
+        const place = await Place.create(sanitizedData);
         res.json({ status: "OK", place });
     } catch (err) {
         handleError(res, 500, err.message);
@@ -157,7 +173,8 @@ app.get('/places', async (req, res) => {
 // Endpoint for retrieving a specific place by ID
 app.get('/places/:id', async (req, res) => {
     try {
-        const place = await Place.findById(req.params.id);
+        const sanitizedId = sanitizeInput(req.params.id);
+        const place = await Place.findById(sanitizedId);
         if (!place) return res.status(404).json({ error: 'Place not found' });
         res.json(place);
     } catch (err) {
@@ -165,10 +182,11 @@ app.get('/places/:id', async (req, res) => {
     }
 });
 
-// Endpoint for deleting a place by ID
-app.delete('/places/:id', async (req, res) => {
+// Endpoint for deleting a place by ID (authenticated route)
+app.delete('/places/:id', authenticateToken, async (req, res) => {
     try {
-        const deletedPlace = await Place.findByIdAndDelete(req.params.id);
+        const sanitizedId = sanitizeInput(req.params.id);
+        const deletedPlace = await Place.findByIdAndDelete(sanitizedId);
         if (!deletedPlace) return res.status(404).json({ error: 'Place not found' });
         res.json({ message: 'Place deleted successfully', deletedPlace });
     } catch (err) {
@@ -176,30 +194,31 @@ app.delete('/places/:id', async (req, res) => {
     }
 });
 
-// Endpoint for updating a place by ID
-app.put('/places/:placeId', async (req, res) => {
+// Endpoint for updating a place by ID (authenticated route)
+app.put('/places/:placeId', authenticateToken, async (req, res) => {
     try {
-        const updatedPlace = await Place.findByIdAndUpdate(req.params.placeId, req.body, { new: true });
+        const sanitizedId = sanitizeInput(req.params.placeId);
+        const sanitizedData = sanitizeInput(req.body);
+        const updatedPlace = await Place.findByIdAndUpdate(sanitizedId, sanitizedData, { new: true });
         res.json({ status: 'OK', updatedPlace });
     } catch (err) {
         handleError(res, 500, 'Failed to update place. Please try again.');
     }
 });
 
-
-// Endpoint for creating Feedback
-app.post('/Feedback', async (req, res) => {
+// Endpoint for creating Feedback (authenticated route)
+app.post('/Feedback', authenticateToken, async (req, res) => {
     try {
-        const feedback = await Feedback.create(req.body);
+        const sanitizedData = sanitizeInput(req.body);
+        const feedback = await Feedback.create(sanitizedData);
         res.json({ status: "OK", feedback });
     } catch (err) {
         handleError(res, 500, err.message);
     }
 });
 
-
-// Endpoint for fetching feedback data
-app.get('/Feedback', async (req, res) => {
+// Endpoint for fetching feedback data (authenticated route)
+app.get('/Feedback', authenticateToken, async (req, res) => {
     try {
         const feedbackData = await Feedback.find();
         res.json(feedbackData);
@@ -208,12 +227,11 @@ app.get('/Feedback', async (req, res) => {
     }
 });
 
-
-// Endpoint for deleting a feedback entry by ID
-app.delete('/Feedback/:id', async (req, res) => {
+// Endpoint for deleting a feedback entry by ID (authenticated route)
+app.delete('/Feedback/:id', authenticateToken, async (req, res) => {
     try {
-        const { id } = req.params;
-        const deletedFeedback = await Feedback.findByIdAndDelete(id);
+        const sanitizedId = sanitizeInput(req.params.id);
+        const deletedFeedback = await Feedback.findByIdAndDelete(sanitizedId);
 
         if (!deletedFeedback) {
             return res.status(404).json({ error: "Feedback entry not found" });
@@ -225,20 +243,30 @@ app.delete('/Feedback/:id', async (req, res) => {
     }
 });
 
-app.post('/bookings', async (req, res) => {
-    console.log(req.body); // Log incoming data
+// Endpoint for creating bookings (authenticated route)
+app.post('/bookings', authenticateToken, async (req, res) => {
+    console.log(req.body);
 
     const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
 
+    const sanitizedName = sanitizeInput(name);
+    const sanitizedMobileNumber = sanitizeInput(mobileNumber);
+    const sanitizedPlace = sanitizeInput(place);
+    const sanitizedParticipants = sanitizeInput(participants);
+    const sanitizedDate = sanitizeInput(date);
+    const sanitizedTime = sanitizeInput(time);
+    const sanitizedLanguage = sanitizeInput(language);
+    const sanitizedTotalPrice = sanitizeInput(totalPrice);
+
     const newBooking = new Booking({
-        name,
-        mobileNumber,
-        place,
-        participants,
-        date,
-        time,
-        language,
-        totalPrice
+        name: sanitizedName,
+        mobileNumber: sanitizedMobileNumber,
+        place: sanitizedPlace,
+        participants: sanitizedParticipants,
+        date: sanitizedDate,
+        time: sanitizedTime,
+        language: sanitizedLanguage,
+        totalPrice: sanitizedTotalPrice
     });
 
     try {
@@ -249,20 +277,23 @@ app.post('/bookings', async (req, res) => {
     }
 });
 
-app.get('/bookings', async (req, res) => {
+// Endpoint for retrieving bookings (authenticated route)
+app.get('/bookings', authenticateToken, async (req, res) => {
     try {
-        const bookings = await Booking.find(); // Retrieve all bookings
-        res.status(200).json(bookings); // Send bookings as JSON response
+        const bookings = await Booking.find();
+        res.status(200).json(bookings);
     } catch (error) {
-        res.status(500).json({ error: error.message }); // Handle server error
+        res.status(500).json({ error: error.message });
     }
 });
 
-app.delete('/bookings/:id', async (req, res) => {
+// Endpoint for deleting a booking by ID (authenticated route)
+app.delete('/bookings/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
 
     try {
-        const deletedBooking = await Booking.findByIdAndDelete(id);
+        const sanitizedId = sanitizeInput(id);
+        const deletedBooking = await Booking.findByIdAndDelete(sanitizedId);
 
         if (!deletedBooking) {
             return res.status(404).json({ error: 'Booking not found' });
@@ -273,6 +304,14 @@ app.delete('/bookings/:id', async (req, res) => {
         console.error('Error deleting booking:', error);
         res.status(500).json({ error: 'Server error' });
     }
+});
+
+// Enforce HTTPS
+app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+        return res.redirect(`https://${req.headers.host}${req.url}`);
+    }
+    next();
 });
 
 app.listen(PORT, () => {
