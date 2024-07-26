@@ -5,11 +5,13 @@ const bcrypt = require('bcrypt');
 const SignupModel = require('./models/Signup');
 const Place = require('./models/PlaceModel');
 const Feedback = require('./models/Feedback');
+const app = express();
+const jwt = require('jsonwebtoken');
 const Booking = require('./models/Booking');
 require('dotenv').config();
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
+
 
 app.use(cors({
     origin: ["http://localhost:3000"],
@@ -17,7 +19,12 @@ app.use(cors({
     credentials: true, // Allow credentials
 }));
 
+
 app.use(express.json({ limit: '100kb' }));
+
+const secretKey = process.env.JWT_SECRET_KEY;
+const refreshSecretKey = process.env.JWT_REFRESH_SECRET_KEY; // Add a separate secret key for refresh tokens
+
 
 mongoose.connect(process.env.MONGO_URL)
     .then(() => {
@@ -33,11 +40,15 @@ const handleError = (res, statusCode, message) => {
     res.status(statusCode).json({ error: message });
 };
 
-// Endpoint to check if phone number exists
+// Route to check if phone number exists
 app.get('/checkUserExist', async (req, res) => {
     try {
         const { phone } = req.query;
+
+        // Check if the phone number exists in the database
         const user = await SignupModel.findOne({ phone });
+
+        // If user exists, return status true
         if (user) {
             return res.json({ exists: true });
         } else {
@@ -49,33 +60,66 @@ app.get('/checkUserExist', async (req, res) => {
     }
 });
 
+
 // Endpoint for user login
 app.post('/Login', async (req, res) => {
     try {
         const { phone, password } = req.body;
+        // Find user by phone number
         const user = await SignupModel.findOne({ phone });
         if (!user) {
-            console.log("User not found for phone:", phone);
+            console.log("User not found for phone:", phone); // Added logging
             return res.status(404).json({ error: "User not found" });
         }
 
+        // Compare passwords
         const passwordMatch = await bcrypt.compare(password, user.password);
         if (!passwordMatch) {
-            console.log("Incorrect password for phone:", phone);
+            console.log("Incorrect password for phone:", phone); // Added logging
             return res.status(401).json({ error: "Incorrect Password" });
         }
+
+        // Generate JWT token and refresh token
+        const token = jwt.sign({ userId: user._id, role: user.role }, secretKey, { expiresIn: '1800s' });
+        const refreshToken = jwt.sign({ userId: user._id, role: user.role }, refreshSecretKey);
 
         res.json({
             Status: "Success",
             role: user.role,
             name: user.name,
-            phone: user.phone
+            phone: user.phone,
+            token,
+            refreshToken // Send the refresh token to the client
         });
     } catch (err) {
-        console.error("Login error:", err);
+        console.error("Login error:", err); // Added logging
         handleError(res, 500, 'Internal server error');
     }
 });
+
+// Endpoint for refreshing JWT token
+app.post('/RefreshToken', async (req, res) => {
+    const { token, refreshToken } = req.body;
+    if (!token || !refreshToken) {
+        return res.status(401).json({ error: 'Token or refresh token missing' });
+    }
+
+    try {
+        // Verify the refresh token
+        jwt.verify(refreshToken, refreshSecretKey, (err, decoded) => {
+            if (err) {
+                return res.status(403).json({ error: 'Invalid refresh token' });
+            }
+
+            // If refresh token is valid, generate a new JWT token
+            const newToken = jwt.sign({ userId: decoded.userId, role: decoded.role }, secretKey, { expiresIn: '10s' });
+            res.json({ token: newToken });
+        });
+    } catch (err) {
+        handleError(res, 500, 'Internal server error');
+    }
+});
+
 
 // Endpoint for user signup
 app.post('/Signup', async (req, res) => {
@@ -141,6 +185,7 @@ app.put('/places/:placeId', async (req, res) => {
     }
 });
 
+
 // Endpoint for creating Feedback
 app.post('/Feedback', async (req, res) => {
     try {
@@ -151,6 +196,7 @@ app.post('/Feedback', async (req, res) => {
     }
 });
 
+
 // Endpoint for fetching feedback data
 app.get('/Feedback', async (req, res) => {
     try {
@@ -160,6 +206,7 @@ app.get('/Feedback', async (req, res) => {
         handleError(res, 500, err.message);
     }
 });
+
 
 // Endpoint for deleting a feedback entry by ID
 app.delete('/Feedback/:id', async (req, res) => {
@@ -177,7 +224,6 @@ app.delete('/Feedback/:id', async (req, res) => {
     }
 });
 
-// Endpoint for creating bookings
 app.post('/bookings', async (req, res) => {
     const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
 
@@ -200,7 +246,6 @@ app.post('/bookings', async (req, res) => {
     }
 });
 
-// Endpoint for retrieving all bookings
 app.get('/bookings', async (req, res) => {
     try {
         const bookings = await Booking.find(); // Retrieve all bookings
@@ -210,7 +255,6 @@ app.get('/bookings', async (req, res) => {
     }
 });
 
-// Endpoint for deleting a booking by ID
 app.delete('/bookings/:id', async (req, res) => {
     const { id } = req.params;
 
