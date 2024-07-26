@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors({
-    origin: ["http://localhost:3000"],
+    origin: ["https://visit-karnataka-frontend.vercel.app"],
     methods: ["GET", "PUT", "POST", "DELETE"],
     credentials: true, // Allow credentials
 }));
