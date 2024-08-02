@@ -11,10 +11,12 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const allowedOrigins = ['https://visit-karnataka-frontend.vercel.app'];
+
 app.use(cors({
-    origin: ["https://visit-karnataka-frontend.vercel.app"],
+    origin: allowedOrigins,
     methods: ["GET", "PUT", "POST", "DELETE"],
-    credentials: true, // Allow credentials
+    credentials: true,
 }));
 
 app.use(express.json({ limit: '100kb' }));
@@ -27,14 +29,24 @@ mongoose.connect(process.env.MONGO_URL)
         console.error("Error connecting to MongoDB:", err);
     });
 
+// Middleware to check Referer header
+const checkReferer = (req, res, next) => {
+    const referer = req.get('Referer');
+    if (!referer || !allowedOrigins.some(origin => referer.startsWith(origin))) {
+        return res.status(403).json({ Message: 'Unauthorized' });
+    }
+    next();
+};
+
 // Reusable error handling function
 const handleError = (res, statusCode, message) => {
     console.error(message);
     res.status(statusCode).json({ error: message });
 };
 
+
 // Endpoint to check if phone number exists
-app.get('/checkUserExist', async (req, res) => {
+app.get('/checkUserExist', checkReferer, async (req, res) => {
     try {
         const { phone } = req.query;
         const user = await SignupModel.findOne({ phone });
@@ -50,7 +62,7 @@ app.get('/checkUserExist', async (req, res) => {
 });
 
 // Endpoint for user login
-app.post('/Login', async (req, res) => {
+app.post('/Login', checkReferer, async (req, res) => {
     try {
         const { phone, password } = req.body;
         const user = await SignupModel.findOne({ phone });
@@ -78,7 +90,7 @@ app.post('/Login', async (req, res) => {
 });
 
 // Endpoint for user signup
-app.post('/Signup', async (req, res) => {
+app.post('/Signup', checkReferer, async (req, res) => {
     try {
         const { name, phone, password } = req.body;
         const hash = await bcrypt.hash(password, 10);
@@ -90,7 +102,7 @@ app.post('/Signup', async (req, res) => {
 });
 
 // Endpoint for creating places
-app.post('/Createplaces', async (req, res) => {
+app.post('/Createplaces', checkReferer, async (req, res) => {
     try {
         const place = await Place.create(req.body);
         res.json({ status: "OK", place });
@@ -100,7 +112,7 @@ app.post('/Createplaces', async (req, res) => {
 });
 
 // Endpoint for retrieving all places
-app.get('/places', async (req, res) => {
+app.get('/places', checkReferer, async (req, res) => {
     try {
         const places = await Place.find({});
         res.json(places);
@@ -110,7 +122,7 @@ app.get('/places', async (req, res) => {
 });
 
 // Endpoint for retrieving a specific place by ID
-app.get('/places/:id', async (req, res) => {
+app.get('/places/:id', checkReferer, async (req, res) => {
     try {
         const place = await Place.findById(req.params.id);
         if (!place) return res.status(404).json({ error: 'Place not found' });
@@ -121,7 +133,7 @@ app.get('/places/:id', async (req, res) => {
 });
 
 // Endpoint for deleting a place by ID
-app.delete('/places/:id', async (req, res) => {
+app.delete('/places/:id', checkReferer, async (req, res) => {
     try {
         const deletedPlace = await Place.findByIdAndDelete(req.params.id);
         if (!deletedPlace) return res.status(404).json({ error: 'Place not found' });
@@ -132,7 +144,7 @@ app.delete('/places/:id', async (req, res) => {
 });
 
 // Endpoint for updating a place by ID
-app.put('/places/:placeId', async (req, res) => {
+app.put('/places/:placeId', checkReferer, async (req, res) => {
     try {
         const updatedPlace = await Place.findByIdAndUpdate(req.params.placeId, req.body, { new: true });
         res.json({ status: 'OK', updatedPlace });
@@ -142,7 +154,7 @@ app.put('/places/:placeId', async (req, res) => {
 });
 
 // Endpoint for creating Feedback
-app.post('/Feedback', async (req, res) => {
+app.post('/Feedback', checkReferer, async (req, res) => {
     try {
         const feedback = await Feedback.create(req.body);
         res.json({ status: "OK", feedback });
@@ -152,7 +164,7 @@ app.post('/Feedback', async (req, res) => {
 });
 
 // Endpoint for fetching feedback data
-app.get('/Feedback', async (req, res) => {
+app.get('/Feedback', checkReferer, async (req, res) => {
     try {
         const feedbackData = await Feedback.find();
         res.json(feedbackData);
@@ -162,7 +174,7 @@ app.get('/Feedback', async (req, res) => {
 });
 
 // Endpoint for deleting a feedback entry by ID
-app.delete('/Feedback/:id', async (req, res) => {
+app.delete('/Feedback/:id', checkReferer, async (req, res) => {
     try {
         const { id } = req.params;
         const deletedFeedback = await Feedback.findByIdAndDelete(id);
@@ -178,7 +190,7 @@ app.delete('/Feedback/:id', async (req, res) => {
 });
 
 // Endpoint for creating bookings
-app.post('/bookings', async (req, res) => {
+app.post('/bookings', checkReferer, async (req, res) => {
     const { name, mobileNumber, place, participants, date, time, language, totalPrice } = req.body;
 
     const newBooking = new Booking({
@@ -201,7 +213,7 @@ app.post('/bookings', async (req, res) => {
 });
 
 // Endpoint for retrieving all bookings
-app.get('/bookings', async (req, res) => {
+app.get('/bookings', checkReferer, async (req, res) => {
     try {
         const bookings = await Booking.find(); // Retrieve all bookings
         res.status(200).json(bookings); // Send bookings as JSON response
@@ -211,7 +223,7 @@ app.get('/bookings', async (req, res) => {
 });
 
 // Endpoint for deleting a booking by ID
-app.delete('/bookings/:id', async (req, res) => {
+app.delete('/bookings/:id', checkReferer, async (req, res) => {
     const { id } = req.params;
 
     try {
