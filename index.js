@@ -14,7 +14,7 @@ const Booking = require('./models/Booking');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const allowedOrigins = ['http://localhost:3000'];
+const allowedOrigins = ['https://visit-karnataka-frontend.vercel.app'];
 
 app.use(helmet());
 app.use(cors({
