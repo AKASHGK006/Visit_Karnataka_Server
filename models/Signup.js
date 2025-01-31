@@ -6,7 +6,7 @@ const SignupSchema = new mongoose.Schema({
     password: String,
     role:{
         type: String,
-        default:"User"
+        default:"Admin"
     }
 }, { collection: 'Cred' });
 
