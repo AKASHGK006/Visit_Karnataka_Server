@@ -56,19 +56,31 @@ app.get('/checkUserExist', checkReferer, async (req, res) => {
 });
 
 app.post('/Login', checkReferer, async (req, res) => {
+    console.log("Login API Hit:", req.body); // Debugging
     try {
         const { phone, password } = req.body;
-        const user = await SignupModel.findOne({ phone });
-        if (!user) return res.status(404).json({ error: "User not found" });
+        console.log("Login Attempt:", phone, password);
 
+        const user = await SignupModel.findOne({ phone });
+        if (!user) {
+            console.log("User Not Found:", phone);
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        console.log("User Found:", user);
         const passwordMatch = await bcrypt.compare(password, user.password);
-        if (!passwordMatch) return res.status(401).json({ error: "Incorrect Password" });
+        if (!passwordMatch) {
+            console.log("Incorrect Password:", password);
+            return res.status(401).json({ error: "Incorrect Password" });
+        }
 
         res.json({ status: "Success", role: user.role, name: user.name, phone: user.phone });
     } catch (err) {
+        console.error("Login Error:", err);
         handleError(res, 500, 'Internal server error');
     }
 });
+
 
 app.post('/Signup', checkReferer, async (req, res) => {
     try {
